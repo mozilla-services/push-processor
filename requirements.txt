@@ -3,3 +3,4 @@ boto3==1.2.6
 gzip_reader==0.1
 protobuf==2.6.1
 redis==2.10.5
+twisted==16.0.0

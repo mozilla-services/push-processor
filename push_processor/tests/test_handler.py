@@ -6,6 +6,7 @@ import unittest
 import uuid
 
 import redis
+from mock import Mock, patch
 from nose.tools import eq_, ok_
 
 import push_messages.tests as pmtests
@@ -64,6 +65,29 @@ class TestHandler(unittest.TestCase):
                           ))]
         ), None)
         eq_(result, None)
+
+    @patch("push_processor.handler.PubKeyProcessor")
+    def test_lambda_with_json(self, mock_pubkey):
+        import push_processor.handler as handler
+        mock_pubkey.return_value = mock_processor = Mock()
+        mock_processor.latest_messages = {}
+
+        handler.settings = {
+            "s3_bucket": "push-test",
+            "s3_key": "opts.js",
+            "redis_port": 6379,
+            "db_tablename": "push_messages_db",
+            "file_type": "json"
+        }
+
+        result = handler.aws_lambda(dict(
+            Records=[dict(s3=dict(
+                          bucket=dict(name="push-test"),
+                          object=dict(key="push_dash_logs.json")
+                          ))]
+        ), None)
+        eq_(result, None)
+        eq_(len(mock_processor.process_message.mock_calls), 407)
 
     def test_json_process(self):
         pkey = uuid.uuid4().hex
