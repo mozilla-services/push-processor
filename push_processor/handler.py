@@ -3,6 +3,7 @@ import json
 import os
 
 import redis
+from twisted.logger import eventsFromJSONLogFile
 
 from push_processor.aws_helpers import s3_open
 from push_processor.db import (
@@ -79,9 +80,6 @@ def process_heka_stream(redis_server, processor, stream):
 
 
 def process_json_stream(redis_server, processor, stream):
-    json_line = stream.readline()
-    while json_line:
-        msg = Message(json=json.loads(json_line))
-        processor.process_message(msg)
-        json_line = stream.readline()
+    for msg in eventsFromJSONLogFile(stream):
+        processor.process_message(Message(json=msg))
     dump_latest_messages_to_redis(redis_server, processor.latest_messages)
