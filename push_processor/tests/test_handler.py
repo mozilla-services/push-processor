@@ -7,7 +7,7 @@ import uuid
 
 import redis
 from mock import Mock, patch
-from nose.tools import eq_, ok_
+from nose.tools import eq_
 
 import push_messages.tests as pmtests
 
@@ -40,25 +40,17 @@ def tearDown():
 
 
 class TestHandler(unittest.TestCase):
-    def test_setup(self):
-        import push_processor.handler as handler
-        handler.setup_objects()
-        eq_(len(handler.settings), 6)
-        ok_("redis_host" in handler.settings)
-
     def test_lambda(self):
         import push_processor.handler as handler
-        handler.redis_server = None
-        result = handler.aws_lambda(dict(
+        result = handler.Lambda.handler(dict(
             Bucket=""
         ), None)
         eq_(result, "Test event")
 
-        handler.redis_server = None
-        result = handler.aws_lambda(dict(), None)
+        result = handler.Lambda.handler(dict(), None)
         eq_(result, "No record found in event")
 
-        result = handler.aws_lambda(dict(
+        result = handler.Lambda.handler(dict(
             Records=[dict(s3=dict(
                           bucket=dict(name="push-test"),
                           object=dict(key="test_protobuf_stream.gz")
@@ -71,8 +63,9 @@ class TestHandler(unittest.TestCase):
         import push_processor.handler as handler
         mock_pubkey.return_value = mock_processor = Mock()
         mock_processor.latest_messages = {}
+        l = handler.Lambda()
 
-        handler.settings = {
+        l.settings = {
             "s3_bucket": "push-test",
             "s3_key": "opts.js",
             "redis_port": 6379,
@@ -80,7 +73,7 @@ class TestHandler(unittest.TestCase):
             "file_type": "json"
         }
 
-        result = handler.aws_lambda(dict(
+        result = l.handle_event(dict(
             Records=[dict(s3=dict(
                           bucket=dict(name="push-test"),
                           object=dict(key="push_dash_logs.json")
@@ -92,7 +85,8 @@ class TestHandler(unittest.TestCase):
     def test_json_process(self):
         pkey = uuid.uuid4().hex
         from push_processor.processor.pubkey import PubKeyProcessor
-        from push_processor.handler import process_json_stream
+        from push_processor.handler import Lambda
+        l = Lambda()
         proc = PubKeyProcessor([pkey])
         msg = json.loads(TEST_MESSAGE)
         msg["Fields"]["jwt"] = {"crypto_key": pkey}
@@ -100,10 +94,10 @@ class TestHandler(unittest.TestCase):
         msg["Fields"]["message_size"] = 312
         msg["Fields"]["message_ttl"] = 600
         f = StringIO.StringIO(json.dumps(msg))
-        redis_server = redis.StrictRedis()
-        process_json_stream(redis_server, proc, f)
-        eq_(redis_server.exists(pkey), True)
-        eq_(redis_server.llen(pkey), 1)
+        l.redis_server = redis.StrictRedis()
+        l.process_json_stream(proc, f)
+        eq_(l.redis_server.exists(pkey), True)
+        eq_(l.redis_server.llen(pkey), 1)
 
         # Now run with at least 100 messages
         messages = []
@@ -112,6 +106,6 @@ class TestHandler(unittest.TestCase):
             nmsg["Fields"]["message_id"] = str(uuid.uuid4())
             messages.append(nmsg)
         f = StringIO.StringIO("\n".join([json.dumps(m) for m in messages]))
-        process_json_stream(redis_server, proc, f)
-        eq_(redis_server.exists(pkey), True)
-        eq_(redis_server.llen(pkey), 100)
+        l.process_json_stream(proc, f)
+        eq_(l.redis_server.exists(pkey), True)
+        eq_(l.redis_server.llen(pkey), 100)
