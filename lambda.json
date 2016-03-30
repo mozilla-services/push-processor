@@ -1,0 +1,20 @@
+{
+  "name": "PushProcessor",
+  "description": "Process Push Messages",
+  "region": "us-east-1",
+  "handler": "push_processor.handler.handler",
+  "role": "arn:aws:iam::00000000000:role/lambda_basic_execution",
+  "ignore": [
+    "circle.yml",
+    ".git",
+    "/*.pyc",
+    ".tox",
+    "ddb",
+    "ppenv",
+    "lenv",
+    "/*.txt",
+    "/*.json"
+  ],
+  "timeout": 30,
+  "memory": 128
+}

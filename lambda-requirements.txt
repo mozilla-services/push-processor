@@ -1,0 +1,6 @@
+git+https://github.com/mozilla-services/push-messages.git@7cf9ea53141f124d8131d65ff7a1a7b32afef8e0#egg=push-messages
+boto3==1.2.6
+gzip_reader==0.1
+protobuf==2.6.1
+redis==2.10.5
+twisted==16.0.0
