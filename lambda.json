@@ -13,7 +13,10 @@
     "ppenv",
     "lenv",
     "/*.txt",
-    "/*.json"
+    "/*.json",
+    "Makefile",
+    "/setup.*",
+    "/*.md"
   ],
   "timeout": 30,
   "memory": 128
