@@ -1,11 +1,13 @@
 """Handler functions for running under Lambda or otherwise"""
-import json
-import os
+from __future__ import print_function
 
+import json
+
+import boto3
 import redis
 from twisted.logger import eventsFromJSONLogFile
 
-from push_processor.aws_helpers import s3_open
+import push_processor.aws_helpers as aws_helpers
 from push_processor.db import (
     get_all_keys,
     dump_latest_messages_to_redis
@@ -15,57 +17,110 @@ from push_processor.message import Message
 from push_processor.processor.pubkey import PubKeyProcessor
 
 
+class ConfigException(Exception):
+    pass
+
+
 class Lambda(object):
+    s3_open = staticmethod(aws_helpers.s3_open)
     __instance = None
 
-    def __new__(cls):
+    @classmethod
+    def _reset(cls):
+        """Resets the singleton, mainly for testing"""
+        cls.__instance = None
+
+    def __new__(cls, event, context):
         """Singleton instance to avoid repeat setup"""
+        # We don't cache test calls
+        if "Bucket" in event:
+            return object.__new__(cls)
+
         if Lambda.__instance is None:
             Lambda.__instance = object.__new__(cls)
         return Lambda.__instance
 
-    def __init__(self):
-        here_dir = os.path.abspath(os.path.dirname(__file__))
-        with open(os.path.join(here_dir, "settings.js")) as f:
-            settings = json.load(f)
+    def __init__(self, event, context):
+        # Test event
+        if "Bucket" in event:
+            return
 
-        # Load S3 config settings if supplied
-        if "s3_bucket" in settings:
-            f = s3_open(settings["s3_bucket"], settings["s3_key"])
+        # Attempt to locate a settings file
+        try:
+            s3_rec = event["Records"][0]["s3"]
+            bucket = s3_rec["bucket"]["name"]
+            print("Attempting to load config data from bucket: "
+                  "{}".format(bucket))
+            f = self.s3_open(bucket, "processor_settings.json")
             s3_config = json.loads(f.read())
-            settings.update(s3_config)
+            settings = s3_config
+        except Exception as exc:
+            raise ConfigException("No settings found: {}".format(exc))
+
+        if "redis_name" in settings:
+            # Locate elasticache instance, bail if not ready
+            print("Loading Redis endpoint config")
+            result = self.es_client.describe_cache_clusters(
+                CacheClusterId=settings["redis_name"],
+                ShowCacheNodeInfo=True,
+            )
+            if not result["CacheClusters"]:
+                raise ConfigException("No cache cluster found of id: %s" %
+                                      settings["redis_name"])
+            cluster = result["CacheClusters"][0]
+            print("Cluster info: {}".format(cluster))
+            redis_host = cluster["CacheNodes"][0]["Endpoint"]["Address"]
+        else:
+            redis_host = settings["redis_host"]
 
         self.redis_server = redis.StrictRedis(
-            host=settings["redis_host"],
-            port=settings["redis_port"]
+            host=redis_host,
+            port=settings.get("redis_port", 6379)
         )
         self.settings = settings
+        print("Loaded all settings.")
+
+    @property
+    def es_client(self):
+        try:
+            return self._es_client
+        except AttributeError:
+            self._es_client = boto3.client('elasticache')
+            return self._es_client
 
     @classmethod
     def handler(cls, event, context):
-        return cls().handle_event(event, context)
+        return cls(event, context).handle_event(event, context)
 
     def handle_event(self, event, context):
         if "Bucket" in event:
             # S3 test event, return
             return "Test event"
 
-        # Check that we have a record
-        if "Records" not in event:
-            return "No record found in event"
-
         pub_keys = get_all_keys(self.settings["db_tablename"])
         processor = PubKeyProcessor(pub_keys)
         use_gzip = self.settings.get("use_gzip", False)
 
+        print("Processing records")
         for record in event["Records"]:
             s3_obj = record["s3"]
             bucket, key = s3_obj["bucket"]["name"], s3_obj["object"]["key"]
-            f = s3_open(bucket, key, use_gzip=use_gzip)
+            if key == "processor_settings.json":
+                # Don't process changes to our config file
+                continue
+
+            print("Attempting to load bucket: {}, key: {}".format(bucket, key))
+            f = self.s3_open(bucket, key, use_gzip=use_gzip)
             if self.settings["file_type"] == "heka":
                 self.process_heka_stream(processor, f)
             else:
                 self.process_json_stream(processor, f)
+        total_messages = processor.total
+        total_flagged = processor.flagged
+        print("Processed {} records, found {} messages to log for {} "
+              "public keys.".format(total_messages, total_flagged,
+                                    len(processor.latest_messages))
+              )
 
     def process_heka_stream(self, processor, stream):
         reader = read_heka_file_stream(stream)

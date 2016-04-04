@@ -1,10 +1,17 @@
 import json
-from push_messages.db import KeyResource
+
+import boto3
+from boto3.dynamodb.conditions import Key
 
 
 def get_all_keys(tablename):
     """Return all the public keys in the database"""
-    return [x["pubkey"] for x in KeyResource(tablename).all_keys()]
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(tablename)
+    response = table.query(
+        KeyConditionExpression=Key('options').eq('public_keys')
+    )
+    return [x["pubkey"] for x in response['Items']]
 
 
 def dump_latest_messages_to_redis(redis_server, messages):
