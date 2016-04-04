@@ -1,3 +1,14 @@
+<a name="0.2"></a>
+## 0.2 (2016-04-04)
+
+
+#### Features
+
+*   read processor settings from root of s3 dir ([87509331](https://github.com/mozilla-services/push-processor/commit/875093313f3fa07b242e73df72465c0ba280862c), closes [#8](https://github.com/mozilla-services/push-processor/issues/8))
+*   add lambda bundling and config ([1daadc57](https://github.com/mozilla-services/push-processor/commit/1daadc57b31521257cbf7dc281d271a089963346), closes [#4](https://github.com/mozilla-services/push-processor/issues/4))
+
+
+
 <a name="0.1"></a>
 ## 0.1 (2016-03-22)
 
