@@ -26,15 +26,16 @@ class TestPubKeyProcessor(unittest.TestCase):
         proc.process_message(msg)
         eq_(len(proc.latest_messages), 0)
 
-        msg.fields["jwt"] = dict()
+        msg.fields["message"] = "Something"
+        msg.fields["jwt_crypto_key"] = "fred"
         proc.process_message(msg)
         eq_(len(proc.latest_messages), 0)
 
         msg.fields["message"] = "Successful delivery"
-        msg.fields["jwt"]["crypto_key"] = "fred"
+        msg.fields["jwt_crypto_key"] = "fred"
         proc.process_message(msg)
         eq_(len(proc.latest_messages), 0)
 
-        msg.fields["jwt"]["crypto_key"] = "asdfasdf"
+        msg.fields["jwt_crypto_key"] = "asdfasdf"
         proc.process_message(msg)
         eq_(len(proc.latest_messages), 1)

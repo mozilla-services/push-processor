@@ -14,7 +14,8 @@ class PubKeyProcessor(object):
         self.total += 1
 
         # Need a message field and jwt
-        if "message" not in message.fields or "jwt" not in message.fields:
+        if ("message" not in message.fields or
+                "jwt_crypto_key" not in message.fields):
             return
 
         # Message needs to be a message delivery or storage on endpoint
@@ -23,7 +24,7 @@ class PubKeyProcessor(object):
             return
 
         # Check the jwt public key for match
-        message_key = message.fields["jwt"]["crypto_key"]
+        message_key = message.fields["jwt_crypto_key"]
 
         # Valid key?
         if message_key not in self.pubkeys:

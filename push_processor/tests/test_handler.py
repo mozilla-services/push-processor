@@ -267,7 +267,7 @@ class TestHandler(unittest.TestCase):
 
         proc = PubKeyProcessor([pkey])
         msg = json.loads(TEST_MESSAGE)
-        msg["Fields"]["jwt"] = {"crypto_key": pkey}
+        msg["Fields"]["jwt_crypto_key"] = pkey
         msg["Fields"]["message_id"] = "jailj24il2j424ijiljlija"
         msg["Fields"]["message_size"] = 312
         msg["Fields"]["message_ttl"] = 600
