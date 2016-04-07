@@ -11,7 +11,7 @@ with open(os.path.join(here, 'CHANGELOG.md')) as f:
 requires = []
 
 setup(name='push_processor',
-      version='0.2',
+      version='0.3',
       description='push_processor',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[

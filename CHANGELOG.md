@@ -1,3 +1,13 @@
+<a name="0.3"></a>
+## 0.3 (2016-04-07)
+
+
+#### Bug Fixes
+
+*   use new correct location for jwt_crypto_key ([6641fa8c](https://github.com/mozilla-services/push-processor/commit/6641fa8c9d58d302823c793dfcbef8897e8553ce))
+
+
+
 <a name="0.2"></a>
 ## 0.2 (2016-04-04)
 
