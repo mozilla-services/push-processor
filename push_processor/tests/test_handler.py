@@ -1,11 +1,9 @@
 import copy
 import json
-import os
 import StringIO
 import unittest
 import uuid
 
-import push_messages.tests as pmtests
 import redis
 from mock import Mock, patch
 from nose.tools import eq_, raises
@@ -21,24 +19,12 @@ TEST_MESSAGE = """\
  "Autopush-1.13", "Type": "twisted:log"}
 """
 
-here_dir = os.path.abspath(os.path.dirname(__file__))
-root_dir = os.path.dirname(os.path.dirname(here_dir))
-ddb_dir = os.path.join(root_dir, "ddb")
-ddb_lib_dir = os.path.join(ddb_dir, "DynamoDBLocal_lib")
-ddb_jar = os.path.join(ddb_dir, "DynamoDBLocal.jar")
-
 
 def setUp():
-    pmtests.ddb_jar = ddb_jar
-    pmtests.setUp()
     import push_processor.aws_helpers as aws
     from botocore.handlers import disable_signing
     aws.s3.meta.client.meta.events.register(
         'choose-signer.s3.*', disable_signing)
-
-
-def tearDown():
-    pmtests.tearDown()
 
 
 class Effect(object):
@@ -71,11 +57,8 @@ class TestHandler(unittest.TestCase):
         handler.Lambda.handler({}, None)
 
     @patch("push_processor.handler.boto3")
-    @patch("push_processor.handler.get_all_keys")
-    def test_lambda_elasticache(self, mock_get_keys, mock_boto):
+    def test_lambda_elasticache(self, mock_boto):
         import push_processor.handler as handler
-
-        mock_get_keys.return_value = []
 
         # Swap out the settings
         handler.Lambda.s3_open = s3_mock = Mock()
@@ -140,14 +123,8 @@ class TestHandler(unittest.TestCase):
                           ))]
         ), None)
 
-    @patch("push_processor.db.boto3")
-    def test_lambda(self, mock_boto):
+    def test_lambda(self):
         import push_processor.handler as handler
-        mock_boto.resource.return_value = mock_ddb = Mock()
-        mock_ddb.Table.return_value = mock_table = Mock()
-        mock_table.query.return_value = dict(Items=[
-            dict(pubkey="ajsildfjasildfjl")
-        ])
         result = handler.Lambda.handler(dict(
             Bucket=""
         ), None)
@@ -194,12 +171,10 @@ class TestHandler(unittest.TestCase):
         eq_(result, None)
 
     @patch("push_processor.handler.PubKeyProcessor")
-    @patch("push_processor.handler.get_all_keys")
-    def test_lambda_with_json(self, mock_get_keys, mock_pubkey):
+    def test_lambda_with_json(self, mock_pubkey):
         import push_processor.handler as handler
         mock_pubkey.return_value = mock_processor = Mock()
         mock_processor.latest_messages = {}
-        mock_get_keys.return_value = []
 
         handler.Lambda.s3_open = s3_mock = Mock()
         s3_mock.side_effect = Effect([
@@ -227,11 +202,9 @@ class TestHandler(unittest.TestCase):
         eq_(result, None)
         eq_(len(mock_processor.process_message.mock_calls), 407)
 
-    @patch("push_processor.handler.get_all_keys")
-    def test_skip_processor_file(self, mock_get_keys):
+    def test_skip_processor_file(self):
         import push_processor.handler as handler
 
-        mock_get_keys.return_value = []
         handler.Lambda.s3_open = s3_mock = Mock()
         s3_mock.side_effect = Effect([
             StringIO.StringIO(
@@ -247,6 +220,7 @@ class TestHandler(unittest.TestCase):
                           object=dict(key="processor_settings.json")
                           ))]
         ), None)
+        s3_mock.assert_called_with("push-test", "processor_settings.json")
 
     def test_json_process(self):
         import push_processor.handler as handler
@@ -255,7 +229,6 @@ class TestHandler(unittest.TestCase):
         handler.Lambda.s3_open = s3_mock = Mock()
         s3_mock.return_value = StringIO.StringIO(
             json.dumps(dict(redis_host="localhost",
-                            db_tablename="push_messages_db",
                             file_type="json"))
         )
         l = handler.Lambda(dict(
@@ -273,7 +246,9 @@ class TestHandler(unittest.TestCase):
         msg["Fields"]["message_ttl"] = 600
         f = StringIO.StringIO(json.dumps(msg))
         l.redis_server = redis.StrictRedis()
+        l.redis_server.hset("registered_keys", pkey, "")
         l.process_json_stream(proc, f)
+        l.dump_latest_messages_to_redis(proc.latest_messages)
         eq_(l.redis_server.exists(pkey), True)
         eq_(l.redis_server.llen(pkey), 1)
 
@@ -285,5 +260,6 @@ class TestHandler(unittest.TestCase):
             messages.append(nmsg)
         f = StringIO.StringIO("\n".join([json.dumps(m) for m in messages]))
         l.process_json_stream(proc, f)
+        l.dump_latest_messages_to_redis(proc.latest_messages)
         eq_(l.redis_server.exists(pkey), True)
         eq_(l.redis_server.llen(pkey), 100)

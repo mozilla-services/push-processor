@@ -7,11 +7,8 @@ import boto3
 import redis
 from twisted.logger import eventsFromJSONLogFile
 
+import push_processor
 import push_processor.aws_helpers as aws_helpers
-from push_processor.db import (
-    get_all_keys,
-    dump_latest_messages_to_redis
-)
 from push_processor.heka import read_heka_file_stream
 from push_processor.message import Message
 from push_processor.processor.pubkey import PubKeyProcessor
@@ -97,7 +94,10 @@ class Lambda(object):
             # S3 test event, return
             return "Test event"
 
-        pub_keys = get_all_keys(self.settings["db_tablename"])
+        print("Running push_processor, version: {}".format(
+            push_processor.__version__))
+        pub_keys = self.get_all_keys()
+        print("Found {} public keys to search for.".format(len(pub_keys)))
         processor = PubKeyProcessor(pub_keys)
         use_gzip = self.settings.get("use_gzip", False)
 
@@ -115,6 +115,7 @@ class Lambda(object):
                 self.process_heka_stream(processor, f)
             else:
                 self.process_json_stream(processor, f)
+            self.dump_latest_messages_to_redis(processor.latest_messages)
         total_messages = processor.total
         total_flagged = processor.flagged
         print("Processed {} records, found {} messages to log for {} "
@@ -126,11 +127,31 @@ class Lambda(object):
         reader = read_heka_file_stream(stream)
         for msg in reader:
             processor.process_message(msg)
-        dump_latest_messages_to_redis(self.redis_server,
-                                      processor.latest_messages)
 
     def process_json_stream(self, processor, stream):
         for msg in eventsFromJSONLogFile(stream):
             processor.process_message(Message(json=msg))
-        dump_latest_messages_to_redis(self.redis_server,
-                                      processor.latest_messages)
+
+    def get_all_keys(self):
+        return self.redis_server.hkeys("registered_keys")
+
+    def dump_latest_messages_to_redis(self, messages):
+        """Dumps a messages hash structure to a given redis server"""
+        for pubkey, message_deq in messages.iteritems():
+            pipe = self.redis_server.pipeline()
+            if len(message_deq) == 100:
+                # Drop the prior key
+                pipe = pipe.delete(pubkey)
+            # Queue all the messages to be added
+            msgs = [
+                json.dumps(
+                    {
+                        "id": m.fields["message_id"],
+                        "timestamp": m.timestamp,
+                        "size": m.fields["message_size"],
+                        "ttl": m.fields.get("message_ttl", 0)
+                    }) for m in message_deq
+            ]
+            pipe.lpush(pubkey, *msgs)
+            pipe.ltrim(pubkey, 0, 100)
+            pipe.execute()

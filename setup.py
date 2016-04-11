@@ -2,6 +2,8 @@ import os
 
 from setuptools import setup, find_packages
 
+from push_processor import __version__
+
 here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, 'README.md')) as f:
     README = f.read()
@@ -11,12 +13,12 @@ with open(os.path.join(here, 'CHANGELOG.md')) as f:
 requires = []
 
 setup(name='push_processor',
-      version='0.3',
+      version=__version__,
       description='push_processor',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
-        "Programming Language :: Python",
-        ],
+          "Programming Language :: Python",
+      ],
       author='',
       author_email='',
       url='',
