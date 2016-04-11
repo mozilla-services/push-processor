@@ -1,3 +1,13 @@
+<a name="0.4"></a>
+## 0.4 (2016-04-11)
+
+
+#### Features
+
+*   refactor to use only Redis ([2503a9ee](https://github.com/mozilla-services/push-processor/commit/2503a9eeb8202dd716e266c8227448fef3ca0558), closes [#11](https://github.com/mozilla-services/push-processor/issues/11))
+
+
+
 <a name="0.3"></a>
 ## 0.3 (2016-04-07)
 
