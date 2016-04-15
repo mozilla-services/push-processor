@@ -27,3 +27,6 @@ lambda-package: $(HERE)/lenv
 	rm -rf lenv/lib/python2.7/site-packages/twisted/mail
 	rm -rf lenv/lib/python2.7/site-packages/twisted/test
 	$(HERE)/ppenv/bin/lambda-uploader --virtualenv=lenv --no-upload
+
+docker-lambda-package:
+	docker run -it --rm -v "$(HERE)":/app python:2.7 /bin/bash -c 'cd /app; make lambda-package'
