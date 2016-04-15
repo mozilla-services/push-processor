@@ -17,7 +17,8 @@ $(HERE)/lenv:
 	$(HERE)/lenv/bin/python setup.py develop
 
 lambda-package: $(HERE)/lenv
-	pip install lambda-uploader
+	virtualenv ppenv
+	$(HERE)/ppenv/bin/pip install lambda-uploader
 	rm -rf lenv/lib/python2.7/site-packages/pip*
 	rm -rf lenv/lib/python2.7/site-packages/twisted/trial
 	rm -rf lenv/lib/python2.7/site-packages/twisted/web
